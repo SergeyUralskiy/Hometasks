@@ -1,0 +1,65 @@
+---
+- name: Deploy Nginx on Ubuntu 20.04
+  hosts: all
+  become: true
+  vars:
+    nginx_port: 8080
+    nginx_user: "www-data"
+
+  tasks:
+    - name: Update apt repositories cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+      notify:
+        - enable nginx
+        - start nginx
+
+    - name: Remove default Nginx config
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Configure Nginx
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart nginx
+
+    - name: Allow Nginx port
+      ufw:
+        rule: allow
+        port: "{{ nginx_port }}"
+        proto: tcp
+
+  handlers:
+    - name: enable nginx
+      systemd:
+        name: nginx
+        enabled: yes
+
+    - name: start nginx
+      systemd:
+        name: nginx
+        state: started
+
+#    - name: reboot host
+#      reboot:
+#        reboot_timeout: 600
+
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+
+    - name: reboot host
+      reboot:
+        reboot_timeout: 600
