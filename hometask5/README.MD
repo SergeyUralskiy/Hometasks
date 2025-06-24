@@ -2,7 +2,7 @@ root@vmboard:/Hometasks/Hometasks/hometask5# vagrant ssh
 
 #Все диски подключены и собраны в raid массив
 
-vagrant@ubuntu-focal:~$ lsblk 
+vagrant@ubuntu-focal:~$lsblk 
 NAME   MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
 loop0    7:0    0 63.3M  1 loop  /snap/core20/1879
 loop1    7:1    0 53.2M  1 loop  /snap/snapd/19122
