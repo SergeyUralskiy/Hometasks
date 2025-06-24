@@ -1,0 +1,81 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+ENV['VAGRANT_SERVER_URL'] = 'http://vagrant.elab.pro'
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "ubuntu/focal64"
+  config.vm.network "forwarded_port", guest: 8080, host: 8080
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus = "1"
+  end
+
+  # Создание 5 дополнительных дисков по 10GB каждый (без disk_attach!)
+  (1..5).each do |i|
+    config.vm.disk :disk, size: "10GB", name: "raid_disk_#{i}"
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    sudo apt-get update
+    sudo apt-get install -y mdadm parted
+
+    # Ждем появления всех дисков
+    sleep 5
+
+    # Находим только те диски, которые имеют размер 10G
+    disks=($(lsblk -dn -o NAME,SIZE | awk '$2=="10G"{print "/dev/"$1}'))
+
+    # Создаем на каждом диске раздел для RAID
+    for disk in "${disks[@]}"; do
+      sudo mdadm --zero-superblock --force "$disk" || true
+      sudo parted -s "$disk" mklabel gpt
+      sudo parted -s "$disk" mkpart primary 0% 100%
+      sudo parted -s "$disk" set 1 raid on
+    done
+
+    sudo partprobe
+
+    raid_parts=()
+    for disk in "${disks[@]}"; do
+      raid_parts+=("${disk}1")
+    done
+
+    # Проверяем, что разделов ровно 5
+    if [ "${#raid_parts[@]}" -ne 5 ]; then
+      echo "RAID требует ровно 5 дисков по 10G! Найдено: ${#raid_parts[@]}"
+      exit 1
+    fi
+
+    sudo mdadm --create --verbose /dev/md0 --level=6 --raid-devices=5 "${raid_parts[@]}"
+
+    while grep -q 'resync' /proc/mdstat; do
+      echo "Waiting for RAID resync to complete..."
+      sleep 10
+    done
+
+    sudo parted -s /dev/md0 mklabel gpt
+    sudo parted -s /dev/md0 mkpart primary ext4 0% 20%
+    sudo parted -s /dev/md0 mkpart primary ext4 20% 40%
+    sudo parted -s /dev/md0 mkpart primary ext4 40% 60%
+    sudo parted -s /dev/md0 mkpart primary ext4 60% 80%
+    sudo parted -s /dev/md0 mkpart primary ext4 80% 100%
+    sudo partprobe /dev/md0
+
+    for i in $(seq 1 5); do
+      sudo mkfs.ext4 -F /dev/md0p$i
+    done
+
+    sudo mkdir -p /raid/part{1,2,3,4,5}
+    for i in $(seq 1 5); do
+      sudo mount /dev/md0p$i /raid/part$i
+      echo "/dev/md0p$i /raid/part$i ext4 defaults,nofail 0 0" | sudo tee -a /etc/fstab
+    done
+
+    sudo mdadm --detail --scan | sudo tee -a /etc/mdadm/mdadm.conf
+    sudo update-initramfs -u
+  SHELL
+end
+
