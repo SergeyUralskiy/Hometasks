@@ -1,6 +1,8 @@
 root@vmboard:/Hometasks/Hometasks/hometask5# vagrant ssh
 
-vagrant@ubuntu-focal:~$ lsblk #Все диски подключены и собраны в raid массив
+#Все диски подключены и собраны в raid массив
+
+vagrant@ubuntu-focal:~$ lsblk 
 NAME   MAJ:MIN RM  SIZE RO TYPE  MOUNTPOINT
 loop0    7:0    0 63.3M  1 loop  /snap/core20/1879
 loop1    7:1    0 53.2M  1 loop  /snap/snapd/19122
@@ -20,14 +22,16 @@ sdg      8:96   0   10G  0 disk
 └─md0    9:0    0   30G  0 raid6 /mnt/raid6
 vagrant@ubuntu-focal:~$
 
-vagrant@ubuntu-focal:~$ cat /proc/mdstat # Сведения raid массива
+# Сведения raid массива
+
+vagrant@ubuntu-focal:~$ cat /proc/mdstat 
 Personalities : [linear] [multipath] [raid0] [raid1] [raid6] [raid5] [raid4] [raid10]
 md0 : active raid6 sdg[4] sdf[3] sde[2] sdd[1] sdc[0]
       31429632 blocks super 1.2 level 6, 512k chunk, algorithm 2 [5/5] [UUUUU]
 
 unused devices: <none>
 
-vagrant@ubuntu-focal:~$ sudo mdadm -D /dev/md0   # Сведения raid массива
+vagrant@ubuntu-focal:~$ sudo mdadm -D /dev/md0   
 /dev/md0:
            Version : 1.2
      Creation Time : Mon Jun 23 07:37:24 2025
@@ -62,10 +66,14 @@ Consistency Policy : resync
        4       8       96        4      active sync   /dev/sdg
 vagrant@ubuntu-focal:~$
 
-vagrant@ubuntu-focal:~$ sudo mdadm --manage /dev/md0 --fail /dev/sdf  # Обозначаем диск raid массива сбойным
+# Обозначаем диск raid массива сбойным
+
+vagrant@ubuntu-focal:~$ sudo mdadm --manage /dev/md0 --fail /dev/sdf  
 mdadm: set /dev/sdf faulty in /dev/md0
 
-vagrant@ubuntu-focal:~$ sudo mdadm --manage /dev/md0 --remove /dev/sdf # Удаляем диск raid массива
+# Удаляем диск raid массива
+
+vagrant@ubuntu-focal:~$ sudo mdadm --manage /dev/md0 --remove /dev/sdf 
 mdadm: hot removed /dev/sdf from /dev/md0
 
 vagrant@ubuntu-focal:~$
@@ -105,12 +113,17 @@ Consistency Policy : resync
        4       8       96        4      active sync   /dev/sdg
 vagrant@ubuntu-focal:~$
 
-vagrant@ubuntu-focal:~$ sudo mdadm --zero-superblock --force /dev/sdf #Обнуляем сведения о том, что диск был частью RAID массива
+#Обнуляем сведения о том, что диск был частью RAID массива
+
+vagrant@ubuntu-focal:~$ sudo mdadm --zero-superblock --force /dev/sdf 
 
 vagrant@ubuntu-focal:~$ sudo mdadm --manage /dev/md0 --add /dev/sdf #Заново добавляем диск в RAID массив
 mdadm: added /dev/sdf
 vagrant@ubuntu-focal:~$
-vagrant@ubuntu-focal:~$ sudo mdadm -D /dev/md0 #Сведения о RAID Массиве
+
+#Сведения о RAID Массиве
+
+vagrant@ubuntu-focal:~$ sudo mdadm -D /dev/md0 
 /dev/md0:
            Version : 1.2
      Creation Time : Mon Jun 23 08:17:42 2025
@@ -121,8 +134,10 @@ vagrant@ubuntu-focal:~$ sudo mdadm -D /dev/md0 #Сведения о RAID Мас�
      Total Devices : 5
        Persistence : Superblock is persistent
 
+#RAID массив восстанавливается
+
        Update Time : Mon Jun 23 08:24:22 2025
-             State : clean, degraded, recovering $ #RAID массив восстанавливается
+             State : clean, degraded, recovering $ 
     Active Devices : 4
    Working Devices : 5
     Failed Devices : 0
