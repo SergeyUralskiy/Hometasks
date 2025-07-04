@@ -20,6 +20,7 @@
 - восстановить файл локально. zfs receive;
 - найти зашифрованное сообщение в файле secret_message.
 3. описание команд и их вывод содержатся в файле lvm-2.log;
+  
 root@lvm-2:/# cat lvm-2.log
 Script started on 2025-07-03 16:19:56+00:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="237" LINES="63"]
 root@lvm-2:/# lsblk
