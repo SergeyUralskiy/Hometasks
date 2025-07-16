@@ -1,0 +1,45 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Устанавливаем зеркало репозиториев Vagrant
+ENV['VAGRANT_SERVER_URL'] = 'http://vagrant.elab.pro'
+
+Vagrant.configure("2") do |config|
+  # Основной box для Ubuntu 22.04 (название box указывается из репозитория Vagrant)
+  BOX_NAME = "ubuntu/jammy64"
+  BOX_VERSION = "1.0.0" # используйте нужную версию
+
+  nodes = [
+    { name: "frontend", ip: "192.168.50.10", hostname: "frontend", groups: ["frontend"] },
+    { name: "backend1", ip: "192.168.50.11", hostname: "backend1", groups: ["backend"] },
+    { name: "backend2", ip: "192.168.50.12", hostname: "backend2", groups: ["backend"] },
+    { name: "db1", ip: "192.168.50.13", hostname: "db1", groups: ["db", "db_primary"] },
+    { name: "db2", ip: "192.168.50.14", hostname: "db2", groups: ["db", "db_secondary"] },
+    { name: "zabbix", ip: "192.168.50.15", hostname: "zabbix", groups: ["zabbix"] },
+    { name: "log", ip: "192.168.50.16", hostname: "log", groups: ["log"] }
+  ]
+
+# Отключаем автоматическое добавление ключей для всех машин (опционально)
+  config.ssh.insert_key = false
+
+# ... остальные настройки ВМ ...
+
+  nodes.each_with_index do |node, idx|
+    config.vm.define node[:name] do |machine|
+      machine.vm.box = "ubuntu/jammy64"
+      machine.vm.hostname = node[:name]
+      machine.vm.network "private_network", ip: node[:ip]
+      
+      # Только для последней ВМ прописываем Ansible-провиженер:
+      if idx == nodes.size - 1
+        machine.vm.provision "ansible" do |ansible|
+          ansible.playbook = "ansible/site.yml"
+          ansible.inventory_path = "ansible/inventory/vagrant_hosts.ini"
+          ansible.limit = "all"   # <-- обязательно!
+          ansible.become = true
+          ansible.compatibility_mode = "2.0"
+        end
+      end
+    end
+  end
+end

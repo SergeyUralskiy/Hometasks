@@ -1,0 +1,28 @@
+---
+- name: Install PostgreSQL
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL is started and enabled
+  service:
+    name: postgresql
+    state: started
+    enabled: yes
+
+# Настройки репликации и резервного копирования должны быть реализованы через отдельные таски
+# Пример: создаём пользователя и БД, детализируйте по своему стенду
+
+- name: Ensure postgres user for replication exists
+  become_user: postgres
+  postgresql_user:
+    name: replicator
+    password: "replpass"
+    role_attr_flags: "REPLICATION"
+
+# Дальнейшие шаги включают настройку pg_hba.conf, postgresql.conf и создание резервных копий, 
+# а также настройки на реплике (db_secondary)
+

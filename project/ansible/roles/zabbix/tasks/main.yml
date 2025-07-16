@@ -1,0 +1,24 @@
+---
+- name: Install Zabbix server, web, and agent
+  apt:
+    name:
+      - zabbix-server-pgsql
+      - zabbix-frontend-php
+      - zabbix-apache-conf
+      - zabbix-agent
+      - postgresql
+    update_cache: yes
+    state: present
+
+- name: Ensure Zabbix and Apache are started and enabled
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - zabbix-server
+    - apache2
+    - zabbix-agent
+
+# Дальнейшие шаги — создание БД, инициализация схемы, настройка сервиса с параметрами
+

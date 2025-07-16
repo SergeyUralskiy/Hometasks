@@ -1,0 +1,42 @@
+---
+- name: Download Angie signing key
+  ansible.builtin.get_url:
+    url: https://packages.angie.software/angie_signing.key
+    dest: /etc/apt/trusted.gpg.d/angie.asc
+    mode: '0644'
+    force: true
+
+- name: Add Angie apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/angie.asc] https://packages.angie.software/ubuntu/ jammy main"
+    state: present
+    filename: angie
+    update_cache: yes
+
+- name: Install Angie
+  apt:
+    name: angie=1.10.0-1~jammy
+    state: present
+    update_cache: yes
+
+
+- name: Ensure Angie is started and enabled
+  service:
+    name: angie
+    state: started
+    enabled: yes
+
+# Пример: размещаем сайт (зависит от ваших задач)
+# - name: Place site configuration
+#   template:
+#     src: site.conf.j2
+#     dest: /etc/angie/sites-available/default
+#   notify: Reload Angie
+
+# handlers/main.yml
+# - name: Reload Angie
+#   service:
+#     name: angie
+#     state: reloaded
+
+

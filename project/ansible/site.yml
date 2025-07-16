@@ -1,0 +1,49 @@
+---
+# Основной Ansible playbook для тестового стенда из 7 ВМ
+# Роли: frontend (на базе angie), backend (на базе apache), db с репликацией,
+# zabbix для мониторинга и лог-сервер
+
+- name: Обновление системы на всех хостах
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt cache and upgrade all packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+
+
+# Далее идут остальные плейбуки/роли, которые ставят angie, apache и пр.
+
+
+- name: Configure Frontend server (angie)
+  hosts: frontend
+  become: true
+  roles:
+    - role: frontend
+
+- name: Configure Backend servers (apache)
+  hosts: backend
+  become: true
+  roles:
+    - role: backend
+
+- name: Configure Database servers with replication and backup
+  hosts: db_primary:db_secondary
+  become: true
+  roles:
+    - role: db
+
+- name: Configure Zabbix monitoring server
+  hosts: zabbix
+  become: true
+  roles:
+    - role: zabbix
+
+- name: Configure Log collection server
+  hosts: log
+  become: true
+  roles:
+    - role: logcollector
+

@@ -1,0 +1,177 @@
+---
+- name: Setup RPM build environment and build nginx with ngx_brotli
+  hosts: rpm-and-repo
+  become: yes
+  vars:
+    rpm_build_dir: /root/rpmbuild
+    ngx_brotli_repo: https://github.com/google/ngx_brotli.git
+    nginx_spec_file: nginx.spec
+    local_repo_path: /usr/share/nginx/html/repo # Путь к локальному репозиторию Nginx
+
+  tasks:
+    - name: Install required packages
+      dnf:
+        name:
+          - wget
+          - rpmdevtools
+          - rpm-build
+          - createrepo
+          - yum-utils
+          - cmake
+          - gcc
+          - git
+          - nano
+        state: present
+        update_cache: yes
+
+    - name: Create RPM build tree
+      command: rpmdev-setuptree
+      args:
+        creates: "{{ rpm_build_dir }}"
+
+    - name: Ensure ~/rpm directory exists
+      file:
+        path: /root/rpm
+        state: directory
+        mode: '0755'
+
+    - name: Download nginx SRPM
+      shell: yumdownloader --source nginx
+      args:
+        chdir: /root/rpm
+
+    - name: Install nginx SRPM
+      shell: rpm -Uvh nginx-*.src.rpm
+      args:
+        chdir: /root/rpm
+
+    - name: Install build dependencies for nginx using yum-builddep
+      command: yum-builddep -y {{ rpm_build_dir }}/SPECS/{{ nginx_spec_file }}
+
+    - name: Clone ngx_brotli repository
+      git:
+        repo: "{{ ngx_brotli_repo }}"
+        dest: /root/ngx_brotli
+        recursive: yes
+        update: no
+
+    - name: Build ngx_brotli module
+      shell: |
+        cd /root/ngx_brotli/deps/brotli
+        mkdir -p out
+        cd out
+        cmake -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+          -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+          -DCMAKE_INSTALL_PREFIX=./installed ..
+        cmake --build . --config Release -j 2 --target brotlienc
+      args:
+        chdir: /root/ngx_brotli/deps/brotli/out # Уточненная директория для cmake
+
+    - name: Patch nginx.spec to add ngx_brotli module
+      lineinfile:
+        path: "{{ rpm_build_dir }}/SPECS/{{ nginx_spec_file }}"
+        regexp: '^(%configure.*)$'
+        line: '\1 --add-module=/root/ngx_brotli \\'
+        backrefs: yes
+
+    - name: Build nginx RPM package without debug
+      shell: rpmbuild -ba {{ rpm_build_dir }}/SPECS/{{ nginx_spec_file }} -D 'debug_package %{nil}'
+      args:
+        chdir: "{{ rpm_build_dir }}"
+
+    - name: Create repo directory for nginx RPMs
+      file:
+        path: "{{ local_repo_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy built RPMs to repo directory
+      copy:
+        remote_src: yes
+        src: "{{ item }}"
+        dest: "{{ local_repo_path }}/"
+        mode: '0644'
+      with_fileglob:
+        - "{{ rpm_build_dir }}/RPMS/x86_64/*.rpm"
+      # Добавляем обработку возможного отсутствия RPM-файлов, хотя после успешной сборки они должны быть
+      ignore_errors: yes # Если по какой-то причине файлы не найдены, не останавливать плейбук
+      # Вместо ignore_errors: yes можно использовать failed_when, но это более сложный случай,
+      # так как rpmbuild может создать несколько файлов или ни одного
+
+    - name: Initialize yum repository metadata
+      command: createrepo "{{ local_repo_path }}/"
+      args:
+        creates: "{{ local_repo_path }}/repodata"
+
+    # --- Начало добавленных/перемещенных задач для установки и настройки Nginx ---
+    - name: Install nginx from local repo or system (ensure nginx is present)
+      dnf:
+        name: nginx # Имя пакета, который будет установлен из любого доступного репозитория
+        state: present
+        update_cache: yes # Обновляем кэш, чтобы гарантировать поиск пакета
+
+    - name: Configure nginx for repo access with autoindex
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        insertafter: 'server {'
+        block: |
+          index index.html index.htm;
+          autoindex on;
+
+    - name: Test nginx configuration
+      command: nginx -t
+
+    - name: Reload nginx service
+      service:
+        name: nginx
+        state: reloaded # Используем reloaded, чтобы избежать ошибок, если сервис еще не запущен
+        enabled: yes
+    # --- Конец добавленных/перемещенных задач ---
+
+    - name: Create yum repo file for local repo
+      copy:
+        dest: /etc/yum.repos.d/otus.repo
+        content: |
+          [otus]
+          name=otus-linux
+          baseurl=http://localhost/repo
+          gpgcheck=0
+          enabled=1
+
+    - name: Update yum cache
+      command: yum makecache
+
+    - name: Verify repo is enabled
+      command: yum repolist enabled
+      register: repolist
+
+    - debug:
+        var: repolist.stdout_lines
+
+    # Дополнительные шаги
+    - name: Download percona-release to local repo
+      get_url:
+        url: https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        dest: "{{ local_repo_path }}/percona-release-latest.noarch.rpm"
+        mode: '0644'
+
+    - name: Update yum repository metadata after adding new package
+      command: createrepo --update "{{ local_repo_path }}/" # Использование --update для быстрого обновления
+
+    - name: Update yum cache again
+      command: yum makecache
+
+    - name: Verify percona-release in repo
+      command: yum list | grep otus
+      register: percona_list
+      changed_when: false
+    - debug:
+        var: percona_list.stdout_lines
+
+    - name: Install percona-release.noarch
+      dnf:
+        name: percona-release.noarch
+        state: present
+

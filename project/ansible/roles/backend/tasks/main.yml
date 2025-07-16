@@ -1,0 +1,19 @@
+---
+- name: Install Apache
+  apt:
+    name: apache2
+    state: present
+    update_cache: yes
+
+- name: Ensure Apache is started and enabled
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+
+# Пример: размещаем backend-приложение
+# - name: Place backend app
+#   copy:
+#     src: app/
+#     dest: /var/www/html/
+

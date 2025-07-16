@@ -1,0 +1,30 @@
+---
+- name: Install rsyslog
+  apt:
+    name: rsyslog
+    state: present
+    update_cache: yes
+
+- name: Ensure rsyslog is started and enabled
+  service:
+    name: rsyslog
+    state: started
+    enabled: yes
+
+# Пример: настройка rsyslog для принятия логов по UDP/TCP
+- name: Enable rsyslog reception over UDP and TCP
+  lineinfile:
+    path: /etc/rsyslog.conf
+    line: '{{ item }}'
+    state: present
+  with_items:
+    - "module(load=\"imudp\")"
+    - "input(type=\"imudp\" port=\"514\")"
+    - "module(load=\"imtcp\")"
+    - "input(type=\"imtcp\" port=\"514\")"
+
+- name: Restart rsyslog to apply changes
+  service:
+    name: rsyslog
+    state: restarted
+

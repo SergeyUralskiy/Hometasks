@@ -1,0 +1,53 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Устанавливаем сервер репозиториев Vagrant
+ENV['VAGRANT_SERVER_URL'] = 'http://vagrant.elab.pro'
+
+Vagrant.configure("2") do |config|
+  # Основной box для Ubuntu 22.04 (название box указывается из репозитория Vagrant)
+  BOX_NAME = "ubuntu/jammy64"
+  BOX_VERSION = "1.0.0" # используйте нужную версию
+
+  nodes = [
+    { name: "frontend", ip: "192.168.50.10", hostname: "frontend", groups: ["frontend"] },
+    { name: "backend1", ip: "192.168.50.11", hostname: "backend1", groups: ["backend"] },
+    { name: "backend2", ip: "192.168.50.12", hostname: "backend2", groups: ["backend"] },
+    { name: "db1", ip: "192.168.50.13", hostname: "db1", groups: ["db", "db_primary"] },
+    { name: "db2", ip: "192.168.50.14", hostname: "db2", groups: ["db", "db_secondary"] },
+    { name: "zabbix", ip: "192.168.50.15", hostname: "zabbix", groups: ["zabbix"] },
+    { name: "log", ip: "192.168.50.16", hostname: "log", groups: ["log"] }
+  ]
+
+  # Отключаем автоматическое добавление ключей для всех машин (опционально)
+  config.ssh.insert_key = false
+
+  nodes.each do |node|
+    config.vm.define node[:name] do |machine|
+      machine.vm.box = BOX_NAME
+      machine.vm.box_version = BOX_VERSION
+      machine.vm.hostname = node[:hostname]
+      machine.vm.network "private_network", ip: node[:ip]
+      
+      # Название VM в VirtualBox
+      machine.vm.provider :virtualbox do |vb|
+        vb.name = node[:hostname]
+        vb.memory = 1024
+        vb.cpus = 1
+      end
+    end
+  end
+
+  # Ansible provisioning – запуск только после поднятия всех машин!
+  config.vm.provision "ansible" do |ansible|
+    ansible.limit = "all"
+    ansible.playbook = "ansible/site.yml"
+    ansible.inventory_path = "ansible/inventory/vagrant_hosts.ini"
+    ansible.extra_vars = {
+      ansible_ssh_user: "vagrant"
+    }
+    ansible.become = true
+    ansible.compatibility_mode = "2.0"
+  end
+end
+
